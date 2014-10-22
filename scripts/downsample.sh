@@ -44,7 +44,8 @@ READS=$3
 
 [[ ! -e $OUTDIR ]] && mkdir $OUTDIR
 
-SEQTK_DIR=`pwd`../seqtk/
+SEQTK_DIR=`readlink -f $0`
+SEQTK_DIR=`dirname $SEQTK_DIR`/../seqtk/
 
 ########
 # RUN! #
@@ -64,10 +65,11 @@ echo ${REVERSE_OUTFILE}
 SEED=$RANDOM
 
 # create forward downsample file -- and put it in the background
-COMMAND1="${SEQTK_DIR}/seqtk sample -s $SEED <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS"
+COMMAND1="${SEQTK_DIR}/seqtk sample -s $SEED"
 COMMAND2="gzip --to-stdout"
-echo "$COMMAND1 | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &"
-$COMMAND1 # | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &
+echo "$COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &"
+$COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &
 
 # create reverse downsample file
-#${SEQTK_DIR}/seqtk sample <(zcat ${INDIR}/$REVERSE_PATTERN}) | gzip --to-stdout -- > ${OUTDIR}/${REVERSE_OUTFILE}
+echo "$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE} &"
+$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}
