@@ -5,7 +5,9 @@ Reads will be selected randomly.
 
 ## Usage
 
-```bash ./downsample indir outdir reads
+```bash
+
+./downsample.sh indir outdir reads
 
 with:
     indir: The input directory. The script will expect forward and reverse
