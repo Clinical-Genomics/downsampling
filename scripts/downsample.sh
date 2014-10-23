@@ -45,7 +45,7 @@ READS=$3
 [[ ! -e $OUTDIR ]] && mkdir $OUTDIR
 
 SEQTK_DIR=`readlink -f $0`
-SEQTK_DIR=`dirname $SEQTK_DIR`/../seqtk/
+SEQTK_DIR=`dirname $SEQTK_DIR`/../bin/
 
 ########
 # RUN! #
@@ -53,17 +53,30 @@ SEQTK_DIR=`dirname $SEQTK_DIR`/../seqtk/
 
 # get first file name - forward
 FORWARD_OUTFILE=`ls -1 ${INDIR}/${FORWARD_PATTERN} | head -1`
+if [[ ! -e $FORWARD_OUTFILE ]]; then
+    >&2 echo 'No forward strands found!'
+    exit 1
+fi
 FORWARD_OUTFILE=`basename $FORWARD_OUTFILE`
-echo ${FORWARD_OUTFILE}
 
 # get first file name - reverse
 REVERSE_OUTFILE=`ls -1 ${INDIR}/${REVERSE_PATTERN} | head -1`
+if [[ ! -e $REVERSE_OUTFILE ]]; then
+    >&2 echo 'No reverse strands found!'
+    exit 1
+fi
 REVERSE_OUTFILE=`basename $REVERSE_OUTFILE`
-echo ${REVERSE_OUTFILE}
 
 # get a random number (range 0-32k)
 SEED=$RANDOM
 
+echo 'Input files FORWARD:'
+ls ${INDIR}/${FORWARD_PATTERN}
+
+echo 'Input files REVERSE:'
+ls ${INDIR}/${REVERSE_PATTERN}
+
+echo 'Running:'
 # create forward downsample file -- and put it in the background
 COMMAND1="${SEQTK_DIR}/seqtk sample -s $SEED"
 COMMAND2="gzip --to-stdout"
@@ -71,5 +84,5 @@ echo "$COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS | $COMMAND2 > ${OUTDI
 $COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &
 
 # create reverse downsample file
-echo "$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE} &"
+echo "$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}"
 $COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}
