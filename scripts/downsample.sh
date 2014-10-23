@@ -77,11 +77,16 @@ echo 'Input files REVERSE:'
 ls ${INDIR}/${REVERSE_PATTERN}
 
 echo 'Running:'
+# create a temp file to store the PID of seqtk
+PIDFILE=`mktemp`
 # create forward downsample file -- and put it in the background
 COMMAND1="${SEQTK_DIR}/seqtk sample -s $SEED"
 COMMAND2="gzip --to-stdout"
 echo "$COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &"
-$COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &
+( echo $BASHPID > $PIDFILE; exec $COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS ) | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &
+
+# remove the background seqtk on ctrl+c
+trap "kill `cat $PIDFILE`; rm $PIDFILE" INT KILL
 
 # create reverse downsample file
 echo "$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}"
