@@ -3,6 +3,15 @@
 # exit on errr
 set -e
 
+##################
+# MATCH PATTERNS #
+##################
+
+# Change the file matching pattern here if needed
+
+FORWARD_PATTERN='*_1.fastq.gz'
+REVERSE_PATTERN='*_2.fastq.gz'
+
 #########
 # USAGE #
 #########
@@ -24,15 +33,6 @@ if [[ $# < 3 ]]; then
 
     exit 1
 fi
-
-##################
-# MATCH PATTERNS #
-##################
-
-# Change the file matching pattern here if needed
-
-FORWARD_PATTERN='*_1.fastq.gz'
-REVERSE_PATTERN='*_2.fastq.gz'
 
 ##########
 # params #
