@@ -29,7 +29,7 @@ if [[ $# < 3 ]]; then
     echo "		       One output file per strand will be created in this directory."
     echo "		       The output file name will be the first file name in the input"
     echo "		       directory matched with above mentioned patterns."
-    echo "		reads: The amount of reads to keep."
+    echo "		reads: The amount of read pairs to keep."
 
     exit 1
 fi
