@@ -6,7 +6,7 @@ set -e
 # import logging/versioning
 source log.bash
 
-VERSION=1.1.0
+VERSION=1.1.1
 log VERSION $VERSION
 
 ##################
