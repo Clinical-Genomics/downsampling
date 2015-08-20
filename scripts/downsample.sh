@@ -50,9 +50,7 @@ READS=$3
 
 [[ ! -e $OUTDIR ]] && mkdir $OUTDIR
 
-SEQTK_DIR=`readlink -f $0`
-SEQTK_DIR=`dirname $SEQTK_DIR`/../bin/
-
+SEQTK_DIR=/mnt/hds/proj/bioinfo/SCRIPTS/git/downsampling/seqtk/
 
 ########
 # RUN! #
