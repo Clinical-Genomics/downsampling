@@ -18,7 +18,7 @@ with:
            One output file per strand will be created in this directory.
            The output file name will be the first file name in the input
            directory matched with above mentioned patterns.
-    reads: The amount of reads to keep.
+    reads: The amount of read pairs to keep.
 ```
 
 ## Dependencies
