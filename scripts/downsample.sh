@@ -84,26 +84,15 @@ ls ${INDIR}/${REVERSE_PATTERN}
 log 'Running:'
 # create a temp file to store the PID of seqtk
 PIDFILE=`mktemp`
-
-# init the seqtk command
+# create forward downsample file -- and put it in the background
 COMMAND1="${SEQTK_DIR}/seqtk sample -s $SEED"
 COMMAND2="gzip --to-stdout"
-
-# create forward downsample files -- and put it in the background
-for FASTQFILE in `( cd ${INDIR} && ls -1 ${FORWARD_PATTERN} )`; do
-    log "$COMMAND1 <(zcat ${INDIR}/${FASTQFILE}) $READS | $COMMAND2 > ${OUTDIR}/${FASTQFILE} &"
-    ( echo $BASHPID >> $PIDFILE; exec $COMMAND1 <(zcat ${INDIR}/${FASTQFILE}) $READS ) | $COMMAND2 > ${OUTDIR}/${FASTQFILE} &
-done
-
-wait # so the node doesn't go down
-
-# create reverse downsample file
-for FASTQFILE in `( cd ${INDIR} && ls -1 ${REVERSE_PATTERN} )`; do
-    log "$COMMAND1 <(zcat ${INDIR}/${FASTQFILE}) $READS | $COMMAND2 > ${OUTDIR}/${FASTQFILE} &"
-    ( echo $BASHPID >> $PIDFILE; exec $COMMAND1 <(zcat ${INDIR}/${FASTQFILE}) $READS ) | $COMMAND2 > ${OUTDIR}/${FASTQFILE} &
-done
+log "$COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &"
+( echo $BASHPID > $PIDFILE; exec $COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS ) | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &
 
 # remove the background seqtk on ctrl+c
-trap "while read -r PID; do kill $PID; done < ${PIDFILE}; rm $PIDFILE" INT KILL
+trap "kill `cat $PIDFILE`; rm $PIDFILE" INT KILL
 
-wait # until everything to complete
+# create reverse downsample file
+log "$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}"
+$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}
