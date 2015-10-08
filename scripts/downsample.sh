@@ -24,9 +24,10 @@ REVERSE_PATTERN='*_2.fastq.gz'
 
 if [[ $# < 3 ]]; then
     echo "Usage:"
-    echo "	$0 indir outdir reads"
+    echo "	$0 [-2] indir outdir reads [total reads]"
     echo ""
     echo "	with:"
+    echo "      -2: To reduce memory footprint, do a doube pass. Takes twice as long."
     echo "		indir: The input directory. The script will expect forward and reverse"
     echo "		       strand files found with a matching pattern."
     echo "		       - forward match pattern: $FORWARD_PATTERN"
@@ -36,6 +37,9 @@ if [[ $# < 3 ]]; then
     echo "		       The output file name will be the first file name in the input"
     echo "		       directory matched with above mentioned patterns."
     echo "		reads: The amount of read pairs to keep."
+    echo "      total reads: To reduce memory footprint, will produce an estimate amount"
+    echo "                   of read pairs to keep. Does NOT work with the -2 option"
+    echo "                   Only requires two cores."
 
     exit 1
 fi
@@ -44,9 +48,17 @@ fi
 # params #
 ##########
 
+DOUBLEPASS=$1
+if [[ $DOUBLEPASS == '-2' ]]; then 
+    shift
+else
+    DOUBLEPASS=
+fi
+
 INDIR=$1
 OUTDIR=$2
 READS=$3
+TOTALREADS=$4
 
 [[ ! -e $OUTDIR ]] && mkdir $OUTDIR
 
@@ -81,18 +93,33 @@ ls ${INDIR}/${FORWARD_PATTERN}
 log 'Input files REVERSE:'
 ls ${INDIR}/${REVERSE_PATTERN}
 
+SAMPLESIZE=$READS
+if [[ ! -z $TOTALREADS ]]; then
+    FRACTION=$( bc -l <<< "$READS/$TOTALREADS" )
+    log "Switching to fractional mode: ${FRACTION}"
+    SAMPLESIZE=$FRACTION
+fi
+
 log 'Running:'
+
 # create a temp file to store the PID of seqtk
 PIDFILE=`mktemp`
+
 # create forward downsample file -- and put it in the background
-COMMAND1="${SEQTK_DIR}/seqtk sample -s $SEED"
+COMMAND1="${SEQTK_DIR}/seqtk sample -s $SEED $DOUBLEPASS"
 COMMAND2="gzip --to-stdout"
-log "$COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &"
-( echo $BASHPID > $PIDFILE; exec $COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $READS ) | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &
+log "$COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $SAMPLESIZE | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &"
+( echo $BASHPID > $PIDFILE; exec $COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $SAMPLESIZE ) | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &
 
 # remove the background seqtk on ctrl+c
 trap "kill `cat $PIDFILE`; rm $PIDFILE" INT KILL
 
+# do one read direction at the time.
+# One read direction should fit in memory (<120GB)
+if [[ $DOUBLEPASS == '-2' ]]; then
+    wait
+fi
+
 # create reverse downsample file
-log "$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}"
-$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $READS | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}
+log "$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $SAMPLESIZE | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}"
+$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $SAMPLESIZE | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}
