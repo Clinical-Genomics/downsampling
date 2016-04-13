@@ -6,7 +6,7 @@ set -e
 # import logging/versioning
 source /mnt/hds/proj/bioinfo/SCRIPTS/log.bash
 
-VERSION=1.4.0
+VERSION=1.4.1
 log VERSION $VERSION
 
 ##################
