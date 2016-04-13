@@ -15,8 +15,8 @@ log VERSION $VERSION
 
 # Change the file matching pattern here if needed
 
-FORWARD_PATTERN='*_1.fastq.gz'
-REVERSE_PATTERN='*_2.fastq.gz'
+FORWARD_PATTERN='*_R1_*.fastq.gz'
+REVERSE_PATTERN='*_R2_*.fastq.gz'
 
 #########
 # USAGE #
