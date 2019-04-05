@@ -3,9 +3,6 @@
 # exit on errr
 set -e
 
-# import logging/versioning
-source /mnt/hds/proj/bioinfo/SCRIPTS/log.bash
-
 #activate production conda env
 shopt -s expand_aliases
 source ${HOME}/.bashrc
