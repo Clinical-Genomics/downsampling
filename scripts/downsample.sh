@@ -8,7 +8,7 @@ shopt -s expand_aliases
 source ${HOME}/.bashrc
 useprod
 
-VERSION=1.4.1
+VERSION=1.5.0
 log VERSION $VERSION
 
 ##################
