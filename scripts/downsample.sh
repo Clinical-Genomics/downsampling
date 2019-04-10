@@ -3,8 +3,10 @@
 # exit on errr
 set -e
 
-# import logging/versioning
-source /mnt/hds/proj/bioinfo/SCRIPTS/log.bash
+#activate production conda env
+shopt -s expand_aliases
+source ${HOME}/.bashrc
+useprod
 
 VERSION=1.4.1
 log VERSION $VERSION
@@ -62,8 +64,6 @@ TOTALREADS=$4
 
 [[ ! -e $OUTDIR ]] && mkdir $OUTDIR
 
-SEQTK_DIR=/mnt/hds/proj/bioinfo/SCRIPTS/git/downsampling/seqtk/
-
 ########
 # RUN! #
 ########
@@ -106,7 +106,7 @@ log 'Running:'
 PIDFILE=`mktemp`
 
 # create forward downsample file -- and put it in the background
-COMMAND1="${SEQTK_DIR}/seqtk sample -s $SEED $DOUBLEPASS"
+COMMAND1="seqtk sample -s $SEED $DOUBLEPASS"
 COMMAND2="gzip --to-stdout"
 log "$COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $SAMPLESIZE | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &"
 ( echo $BASHPID > $PIDFILE; exec $COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $SAMPLESIZE ) | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &
