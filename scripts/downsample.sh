@@ -26,7 +26,7 @@ REVERSE_PATTERN='*_R2_*.fastq.gz'
 
 if [[ $# < 3 ]]; then
     echo "Usage:"
-    echo "	$0 [-2] indir outdir reads [total reads]"
+    echo "	$0 [-2] indir outdir readpairs [total readpairs]"
     echo ""
     echo "	with:"
     echo "      -2: To reduce memory footprint, do a doube pass. Takes twice as long."
@@ -38,7 +38,7 @@ if [[ $# < 3 ]]; then
     echo "		       One output file per strand will be created in this directory."
     echo "		       The output file name will be the first file name in the input"
     echo "		       directory matched with above mentioned patterns."
-    echo "		reads: The amount of read pairs to keep."
+    echo "		readpairs: The amount of read pairs to keep."
     echo "      total reads: To reduce memory footprint, will produce an estimate amount"
     echo "                   of read pairs to keep. Does NOT work with the -2 option"
     echo "                   Only requires two cores."
