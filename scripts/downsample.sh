@@ -3,10 +3,9 @@
 # exit on errr
 set -e
 
-#activate production conda env
-shopt -s expand_aliases
-source ${HOME}/.bashrc
-useprod
+log() {
+    >&2 echo $*
+}
 
 VERSION=1.5.0
 log VERSION $VERSION
