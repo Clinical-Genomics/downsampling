@@ -1,20 +1,17 @@
 #!/bin/bash
 
-# exit on errr
-set -e
+set -euo pipefail   # -e: exit on error, -u: error on unset vars, -o pipefail: catch failures anywhere in a pipe
 
 log() {
-    >&2 echo $*
+    >&2 echo "$*"
 }
 
-VERSION=1.5.1
-log VERSION $VERSION
+VERSION=2.0.0
+log "VERSION $VERSION"
 
 ##################
 # MATCH PATTERNS #
 ##################
-
-# Change the file matching pattern here if needed
 
 FORWARD_PATTERN='*_R1_*.fastq.gz'
 REVERSE_PATTERN='*_R2_*.fastq.gz'
@@ -23,25 +20,18 @@ REVERSE_PATTERN='*_R2_*.fastq.gz'
 # USAGE #
 #########
 
-if [[ $# < 3 ]]; then
+if [[ $# -lt 3 ]]; then
     echo "Usage:"
-    echo "	$0 [-2] indir outdir readpairs [total readpairs]"
+    echo "      $0 [-2] indir outdir readpairs [total readpairs]"
     echo ""
-    echo "	with:"
-    echo "      -2: To reduce memory footprint, do a doube pass. Takes twice as long."
-    echo "		indir: The input directory. The script will expect forward and reverse"
-    echo "		       strand files found with a matching pattern."
-    echo "		       - forward match pattern: $FORWARD_PATTERN"
-    echo "		       - reverse match pattern: $REVERSE_PATTERN"
-    echo "		outdir: The output directory. Will be created if it does not exist."
-    echo "		       One output file per strand will be created in this directory."
-    echo "		       The output file name will be the first file name in the input"
-    echo "		       directory matched with above mentioned patterns."
-    echo "		readpairs: The amount of read pairs to keep."
-    echo "      total reads: To reduce memory footprint, will produce an estimate amount"
-    echo "                   of read pairs to keep. Does NOT work with the -2 option"
-    echo "                   Only requires two cores."
-
+    echo "      with:"
+    echo "      -2: To reduce memory footprint, do a double pass. Takes twice as long."
+    echo "              indir: input dir, matched with:"
+    echo "                     - forward: $FORWARD_PATTERN"
+    echo "                     - reverse: $REVERSE_PATTERN"
+    echo "              outdir: output dir (created if missing)"
+    echo "              readpairs: number of read pairs to keep"
+    echo "      total reads: for fractional/estimate mode. Not compatible with -2."
     exit 1
 fi
 
@@ -49,76 +39,102 @@ fi
 # params #
 ##########
 
-DOUBLEPASS=$1
-if [[ $DOUBLEPASS == '-2' ]]; then 
+DOUBLEPASS=
+if [[ "$1" == '-2' ]]; then
+    DOUBLEPASS='-2'
     shift
-else
-    DOUBLEPASS=
 fi
 
 INDIR=$1
 OUTDIR=$2
 READS=$3
-TOTALREADS=$4
+TOTALREADS=${4:-}
 
-[[ ! -e $OUTDIR ]] && mkdir $OUTDIR
+if [[ -n "$DOUBLEPASS" && -n "$TOTALREADS" ]]; then
+    log "ERROR: -2 and [total readpairs] fractional mode cannot be combined."
+    exit 1
+fi
+
+mkdir -p "$OUTDIR"
+
+##################
+# find input files #
+##################
+
+FORWARD_IN=$(ls -1 ${INDIR}/${FORWARD_PATTERN} 2>/dev/null | head -1) || true
+if [[ -z "$FORWARD_IN" ]]; then
+    log "ERROR: No forward strand files found matching $FORWARD_PATTERN in $INDIR"
+    exit 1
+fi
+
+REVERSE_IN=$(ls -1 ${INDIR}/${REVERSE_PATTERN} 2>/dev/null | head -1) || true
+if [[ -z "$REVERSE_IN" ]]; then
+    log "ERROR: No reverse strand files found matching $REVERSE_PATTERN in $INDIR"
+    exit 1
+fi
+
+FORWARD_OUTFILE=$(basename "$FORWARD_IN")
+REVERSE_OUTFILE=$(basename "$REVERSE_IN")
+
+log "Input files FORWARD:"
+ls ${INDIR}/${FORWARD_PATTERN} >&2
+
+log "Input files REVERSE:"
+ls ${INDIR}/${REVERSE_PATTERN} >&2
+
+# single seed shared by both mates so pairs stay in sync
+SEED=$RANDOM
+
+SAMPLESIZE=$READS
+if [[ -n "$TOTALREADS" ]]; then
+    FRACTION=$(bc -l <<< "$READS/$TOTALREADS")
+    log "Switching to fractional mode: $FRACTION"
+    SAMPLESIZE=$FRACTION
+fi
+
+SEQTK=/home/proj/production/bin/git/downsampling/seqtk/seqtk
 
 ########
 # RUN! #
 ########
 
-# get first file name - forward
-FORWARD_OUTFILE=`ls -1 ${INDIR}/${FORWARD_PATTERN} | head -1`
-if [[ ! -e $FORWARD_OUTFILE ]]; then
-    error 'No forward strands found!'
+downsample() {
+    local pattern=$1
+    local outfile=$2
+    log "Running: zcat ${INDIR}/${pattern} | seqtk sample -s $SEED $DOUBLEPASS $SAMPLESIZE | gzip -c > ${OUTDIR}/${outfile}"
+    zcat ${INDIR}/${pattern} \
+        | "$SEQTK" sample -s "$SEED" $DOUBLEPASS - "$SAMPLESIZE" \
+        | gzip -c > "${OUTDIR}/${outfile}"
+}
+
+# Run forward and reverse in parallel background jobs, but ACTUALLY check both exit codes.
+downsample "$FORWARD_PATTERN" "$FORWARD_OUTFILE" &
+FWD_PID=$!
+
+downsample "$REVERSE_PATTERN" "$REVERSE_OUTFILE" &
+REV_PID=$!
+
+# clean up children on ctrl+c / kill
+trap 'kill "$FWD_PID" "$REV_PID" 2>/dev/null || true' INT TERM
+
+FAIL=0
+wait "$FWD_PID" || { log "ERROR: forward downsampling failed"; FAIL=1; }
+wait "$REV_PID" || { log "ERROR: reverse downsampling failed"; FAIL=1; }
+
+if [[ $FAIL -ne 0 ]]; then
+    log "One or more downsampling jobs failed — output is incomplete/untrustworthy."
     exit 1
 fi
-FORWARD_OUTFILE=`basename $FORWARD_OUTFILE`
 
-# get first file name - reverse
-REVERSE_OUTFILE=`ls -1 ${INDIR}/${REVERSE_PATTERN} | head -1`
-if [[ ! -e $REVERSE_OUTFILE ]]; then
-    error 'No reverse strands found!'
-    exit 1
-fi
-REVERSE_OUTFILE=`basename $REVERSE_OUTFILE`
+##################
+# sanity check    #
+##################
 
-# get a random number (range 0-32k)
-SEED=$RANDOM
+for f in "${OUTDIR}/${FORWARD_OUTFILE}" "${OUTDIR}/${REVERSE_OUTFILE}"; do
+    if ! gzip -t "$f" 2>/dev/null; then
+        log "ERROR: $f failed gzip integrity check (truncated?)"
+        exit 1
+    fi
+done
 
-log 'Input files FORWARD:'
-ls ${INDIR}/${FORWARD_PATTERN}
-
-log 'Input files REVERSE:'
-ls ${INDIR}/${REVERSE_PATTERN}
-
-SAMPLESIZE=$READS
-if [[ ! -z $TOTALREADS ]]; then
-    FRACTION=$( bc -l <<< "$READS/$TOTALREADS" )
-    log "Switching to fractional mode: ${FRACTION}"
-    SAMPLESIZE=$FRACTION
-fi
-
-log 'Running:'
-
-# create a temp file to store the PID of seqtk
-PIDFILE=`mktemp`
-
-# create forward downsample file -- and put it in the background
-COMMAND1="seqtk sample -s $SEED $DOUBLEPASS"
-COMMAND2="gzip --to-stdout"
-log "$COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $SAMPLESIZE | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &"
-( echo $BASHPID > $PIDFILE; exec $COMMAND1 <(zcat ${INDIR}/${FORWARD_PATTERN}) $SAMPLESIZE ) | $COMMAND2 > ${OUTDIR}/${FORWARD_OUTFILE} &
-
-# remove the background seqtk on ctrl+c
-trap "kill `cat $PIDFILE`; rm $PIDFILE" INT KILL
-
-# do one read direction at the time.
-# One read direction should fit in memory (<120GB)
-if [[ $DOUBLEPASS == '-2' ]]; then
-    wait
-fi
-
-# create reverse downsample file
-log "$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $SAMPLESIZE | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}"
-$COMMAND1 <(zcat ${INDIR}/${REVERSE_PATTERN}) $SAMPLESIZE | $COMMAND2 > ${OUTDIR}/${REVERSE_OUTFILE}
+log "Done. Output written to $OUTDIR"
